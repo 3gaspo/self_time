@@ -1,0 +1,66 @@
+#!/bin/bash
+
+# Shared by direct TIME run scripts and scheduler wrappers.
+runtime_project_root="${PROJECT_ROOT:-${ROOT_DIR:?ROOT_DIR or PROJECT_ROOT must be set}}"
+
+TIME_STORAGE_ROOT="${TIME_STORAGE_ROOT:-$runtime_project_root}"
+TIME_DATA_ROOT="${TIME_DATA_ROOT:-$TIME_STORAGE_ROOT/datasets}"
+TIME_DATASET="${TIME_DATASET:-$TIME_DATA_ROOT/hf_dataset}"
+TIME_METADATA="${TIME_METADATA:-$TIME_DATA_ROOT/time_metadata}"
+TIME_WEIGHTS="${TIME_WEIGHTS:-$TIME_STORAGE_ROOT/weights}"
+if [ -n "${SELENA_NNI:-}" ]; then
+    TIME_SCRATCH_ROOT="/scratch/users/${SELENA_NNI,,}/codes/$(basename "$runtime_project_root")"
+    export TIME_SCRATCH_ROOT
+    default_outputs_root="$TIME_SCRATCH_ROOT/outputs"
+    default_logs_root="$TIME_SCRATCH_ROOT/logs"
+else
+    default_outputs_root="$runtime_project_root/outputs/dgx"
+    default_logs_root="$runtime_project_root/logs/dgx"
+fi
+OUTPUTS_ROOT="${OUTPUTS_ROOT:-${TIME_OUTPUTS:-$default_outputs_root}}"
+LOGS_ROOT="${LOGS_ROOT:-${TIME_LOGS:-$default_logs_root}}"
+TIME_OUTPUTS="$OUTPUTS_ROOT"
+TIME_LOGS="$LOGS_ROOT"
+
+TIME_SEASONAL_SCOPE="${TIME_SEASONAL_SCOPE:-shared}"
+case "$TIME_SEASONAL_SCOPE" in
+    shared)
+        default_seasonal_root="$TIME_STORAGE_ROOT/codes/seasonal"
+        ;;
+    project)
+        default_seasonal_root="$TIME_OUTPUTS"
+        ;;
+    *)
+        echo "TIME_SEASONAL_SCOPE must be shared or project" >&2
+        return 2 2>/dev/null || exit 2
+        ;;
+esac
+TIME_SEASONAL_ROOT="${TIME_SEASONAL_ROOT:-$default_seasonal_root}"
+TIME_SEASONAL_TASKS_ROOT="${TIME_SEASONAL_TASKS_ROOT:-$TIME_SEASONAL_ROOT/foundation_models/tasks}"
+if [ "$TIME_SEASONAL_SCOPE" = shared ]; then
+    default_seasonal_logs_root="$TIME_SEASONAL_ROOT/logs"
+else
+    default_seasonal_logs_root="$TIME_LOGS"
+fi
+TIME_SEASONAL_LOGS_ROOT="${TIME_SEASONAL_LOGS_ROOT:-$default_seasonal_logs_root}"
+
+HF_HOME="${HF_HOME:-$TIME_WEIGHTS/huggingface}"
+HUGGINGFACE_HUB_CACHE="${HUGGINGFACE_HUB_CACHE:-$HF_HOME/hub}"
+HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-$HF_HOME/datasets}"
+TRANSFORMERS_CACHE="${TRANSFORMERS_CACHE:-$HF_HOME/transformers}"
+TORCH_HOME="${TORCH_HOME:-$TIME_WEIGHTS/torch}"
+
+export TIME_STORAGE_ROOT TIME_DATA_ROOT TIME_DATASET TIME_METADATA TIME_WEIGHTS
+export TIME_SEASONAL_SCOPE TIME_SEASONAL_ROOT TIME_SEASONAL_TASKS_ROOT TIME_SEASONAL_LOGS_ROOT
+export OUTPUTS_ROOT LOGS_ROOT TIME_OUTPUTS TIME_LOGS
+export HF_HOME HUGGINGFACE_HUB_CACHE HF_DATASETS_CACHE TRANSFORMERS_CACHE TORCH_HOME
+
+mkdir -p "$TIME_DATA_ROOT" "$TIME_METADATA" "$TIME_WEIGHTS" "$TIME_OUTPUTS" "$TIME_LOGS"
+
+# One compute-node resource snapshot per Slurm job, including helper jobs.
+if [ -n "${SLURM_JOB_ID:-}" ] && [ "${TIME_RESOURCES_LOGGED_JOB:-}" != "$SLURM_JOB_ID" ]; then
+    export TIME_RESOURCES_LOGGED_JOB="$SLURM_JOB_ID"
+    srun --ntasks=1 uv run --no-sync python \
+        "$runtime_project_root/src/timebench/pipeline/runtime_resources.py" || \
+        echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] resources probe failed; diagnostics unavailable" >&2
+fi

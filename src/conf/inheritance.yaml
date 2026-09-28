@@ -1,0 +1,13 @@
+parent:
+  project: improved_time
+  revision: cbf1fce015bf29ffe3b02ad8016d54e334123191
+  source_remote: improved
+references:
+  - project: evaluating_tsfms
+    revision: 1266509bd9639983c34de287ed22bf55fc7e25c4
+    role: source-adapted foundation inference and reporting interfaces
+  - project: transformed_covariates
+    revision: 3cbf4688aeab1306f1d02c25061a6dc6a22ec612
+    role: read-only scientific and structural inspiration
+status: implementation_iteration
+implemented_experiment: true

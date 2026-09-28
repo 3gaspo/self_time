@@ -1,0 +1,41 @@
+model: chronos2
+datasets: [all_datasets]
+terms: null
+dataset_config: null
+output_dir: null
+seed: 1
+target_mode: auto
+instance_normalization: zscore
+
+# Each entry is one matched experiment configuration. Its channels field is an
+# ordered list and may contain one or more canonical self-augmentations.
+augmentation_sets:
+  - name: vanilla
+    channels: []
+  - name: sqrt_abs_x_norm
+    channels: [sqrt_abs_x_norm]
+  - name: sign_x_norm
+    channels: [sign_x_norm]
+  - name: x
+    channels: [x]
+  - name: constant_0
+    channels: [constant_0]
+  - name: constant_1
+    channels: [constant_1]
+  - name: sqrt_abs_x_norm_plus_sign_x_norm
+    channels: [sqrt_abs_x_norm_plus_sign_x_norm]
+
+model_settings:
+  chronos2:
+    context_length: 8192
+    batch_size: 16
+    model_path: null
+  ts_icl:
+    context_length: 4096
+    batch_size: 16
+    model_path: null
+
+hydra:
+  run:
+    dir: ${oc.env:TIME_LOGS,logs/dgx}/self_augmentation/hydra/${model}
+  output_subdir: null
