@@ -125,12 +125,12 @@ def main() -> None:
     parser.add_argument("--results-dir", type=Path,
                         default=outputs_root() / "self_augmentation" / "tasks")
     parser.add_argument("--seasonal-naive-results-dir", type=Path,
-                        default=os.environ.get("TIME_SEASONAL_TASKS_ROOT"))
+                        default=os.environ.get("TIME_SEASONAL_EVALUATIONS_ROOT"))
     parser.add_argument("--launch-id", default=None)
     parser.add_argument("--output", type=Path, default=None)
     args = parser.parse_args()
     if args.seasonal_naive_results_dir is None:
-        raise ValueError("Set TIME_SEASONAL_TASKS_ROOT or pass --seasonal-naive-results-dir")
+        raise ValueError("Set TIME_SEASONAL_EVALUATIONS_ROOT or pass --seasonal-naive-results-dir")
 
     reporter = _foundation_reporter()
     cells = reporter.load_result_cells(

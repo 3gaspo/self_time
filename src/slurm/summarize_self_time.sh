@@ -16,11 +16,11 @@ source "$PROJECT_ROOT/src/slurm/workflow_common.sh"
 time_workflow_init
 time_stage_start report
 report_root="$TIME_OUTPUTS/self_augmentation/reports"
-time_task_start "results=$TIME_OUTPUTS/self_augmentation/tasks seasonal=$TIME_SEASONAL_TASKS_ROOT output=$report_root"
+time_task_start "results=$TIME_OUTPUTS/self_augmentation/tasks seasonal=$TIME_SEASONAL_EVALUATIONS_ROOT output=$report_root"
 command=(
     uv run --no-sync python "$PROJECT_ROOT/src/scripts/report.py"
     --results-dir "$TIME_OUTPUTS/self_augmentation/tasks"
-    --seasonal-naive-results-dir "$TIME_SEASONAL_TASKS_ROOT"
+    --seasonal-naive-results-dir "$TIME_SEASONAL_EVALUATIONS_ROOT"
     --launch-id "$TIME_LAUNCH_ID"
     --output "$report_root"
 )

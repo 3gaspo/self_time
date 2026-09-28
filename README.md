@@ -51,6 +51,9 @@ and reports below `<O>/self_augmentation/reports/`. Here `<O>` is
 execution, or `outputs/selena` after synchronization. Each
 `run_n/manifest.json` is the authoritative scientific configuration and
 lifecycle record.
+The report reads the common baseline from the independent Seasonal checkout's
+`outputs/seasonal_naive/evaluations/` tree through
+`TIME_SEASONAL_EVALUATIONS_ROOT`.
 
 Every Slurm stream, Hydra directory, stage log, and workflow status is grouped
 below `logs/<surface>/self_augmentation/`. Launch IDs and timestamps remain in
