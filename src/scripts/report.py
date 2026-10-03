@@ -16,6 +16,9 @@ import numpy as np
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
+from timebench.pipeline import manifest_reference
+from timebench.pipeline.report_transaction import ReportTransaction
+
 
 def _foundation_reporter():
     path = PROJECT_ROOT / "scripts" / "compute_foundation_summary.py"
@@ -139,11 +142,12 @@ def main() -> None:
         launch_id=args.launch_id,
         config_policy="distinct",
         repeat_policy="latest",
+        config_axis_fields=["experiment_config.augmentation_id"],
     )
     seasonal = reporter.load_result_cells(
         args.seasonal_naive_results_dir,
         {"seasonal_naive"},
-        config_policy="latest",
+        config_policy="error",
         repeat_policy="latest",
         task_specific_model_fields={"season_length"},
     )
@@ -166,10 +170,11 @@ def main() -> None:
         row["self_augmentations"] = channels
     rows.sort(key=lambda row: (row["base_model"], row["augmentation_id"]))
 
-    destination = args.output or (
+    final_destination = args.output or (
         outputs_root() / "self_augmentation" / "reports"
     )
-    destination.mkdir(parents=True, exist_ok=True)
+    transaction = ReportTransaction(final_destination)
+    destination = transaction.staging
     summary_path = destination / "self_time_summary.csv"
     _write_summary(rows, summary_path)
     artifacts = [summary_path, summary_path.with_suffix(".md")]
@@ -198,15 +203,20 @@ def main() -> None:
             "config_policy": "distinct",
             "repeat_policy": "latest",
         },
-        "input_manifests": [cell["manifest_path"] for cell in cells],
-        "seasonal_naive_input_manifests": [cell["manifest_path"] for cell in seasonal],
+        "input_dependencies": [
+            manifest_reference(cell["manifest_path"]) for cell in cells
+        ],
+        "seasonal_naive_input_dependencies": [
+            manifest_reference(cell["manifest_path"]) for cell in seasonal
+        ],
         "artifacts": [str(path.relative_to(destination)) for path in artifacts],
     }
     (destination / "report_manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    print(f"Self TIME report written to {destination}")
+    transaction.commit()
+    print(f"Self TIME report written to {final_destination}")
 
 
 if __name__ == "__main__":

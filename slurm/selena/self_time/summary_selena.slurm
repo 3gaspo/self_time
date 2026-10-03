@@ -3,7 +3,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --output=/scratch/users/%u/codes/self_time/logs/self_augmentation/slurm/%x_%j.out
 #SBATCH --error=/scratch/users/%u/codes/self_time/logs/self_augmentation/slurm/%x_%j.err
-#SBATCH --time=01:00:00
+#SBATCH --time=23:00:00
 #SBATCH --partition=an
 #SBATCH --qos=an_preemptable
 #SBATCH --nodes=1

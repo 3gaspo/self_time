@@ -41,7 +41,8 @@ def load_dataset_mase(
     launch_id: str | None = None,
     target_modes: set[str] | None = None,
     config_filters: dict | None = None,
-    config_policy: str = "latest",
+    config_policy: str = "error",
+    config_axis_fields: list[str] | None = None,
     repeat_policy: str = "latest",
 ) -> pd.DataFrame:
     """Geometrically average Seasonal-Naive-scaled task MASE per dataset."""
@@ -53,6 +54,7 @@ def load_dataset_mase(
         launch_id=launch_id,
         config_filters=config_filters,
         config_policy=config_policy,
+        config_axis_fields=config_axis_fields,
         repeat_policy=repeat_policy,
     )
     for run_dir, manifest in selected:
@@ -97,7 +99,7 @@ def load_dataset_mase(
         models={"seasonal_naive"},
         target_modes={"univariate"},
         launch_id=seasonal_naive_launch_id,
-        config_policy=config_policy,
+        config_policy="error",
         repeat_policy=repeat_policy,
         task_specific_model_fields={"season_length"},
     )
@@ -149,7 +151,8 @@ def join_features_and_mase(
     launch_id: str | None = None,
     target_modes: set[str] | None = None,
     config_filters: dict | None = None,
-    config_policy: str = "latest",
+    config_policy: str = "error",
+    config_axis_fields: list[str] | None = None,
     repeat_policy: str = "latest",
 ) -> pd.DataFrame:
     """Join dataset features to Seasonal-Naive-scaled model performance."""
@@ -163,6 +166,7 @@ def join_features_and_mase(
         target_modes=target_modes,
         config_filters=config_filters,
         config_policy=config_policy,
+        config_axis_fields=config_axis_fields,
         repeat_policy=repeat_policy,
     )
     joined = mase.merge(features, on="dataset_id", how="inner", validate="many_to_one")
@@ -331,7 +335,8 @@ def analyze_feature_performance(
     launch_id: str | None = None,
     target_modes: set[str] | None = None,
     config_filters: dict | None = None,
-    config_policy: str = "latest",
+    config_policy: str = "error",
+    config_axis_fields: list[str] | None = None,
     repeat_policy: str = "latest",
     features: list[str] | None = None,
     top: int = 5,
@@ -348,6 +353,7 @@ def analyze_feature_performance(
         target_modes,
         config_filters,
         config_policy,
+        config_axis_fields,
         repeat_policy,
     )
     correlations = feature_correlations(joined, features=features)

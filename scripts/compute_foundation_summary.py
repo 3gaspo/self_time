@@ -4,6 +4,7 @@
 import argparse
 import csv
 import json
+import shutil
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -15,7 +16,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from timebench.paths import foundation_experiment_root, outputs_root, foundation_experiment_name
-from timebench.pipeline import parse_config_filters, select_completed_runs
+from timebench.pipeline import manifest_reference, parse_config_filters, select_completed_runs
+from timebench.pipeline.report_transaction import ReportTransaction
 
 DEFAULT_MODELS = (
     "chronos2",
@@ -30,9 +32,10 @@ def load_result_cells(
     launch_id: str | None = None,
     target_modes: set[str] | None = None,
     config_filters: dict | None = None,
-    config_policy: str = "latest",
+    config_policy: str = "error",
     repeat_policy: str = "latest",
     task_specific_model_fields: set[str] | None = None,
+    config_axis_fields: list[str] | None = None,
 ) -> list[dict]:
     """Load selected completed manifests for dataset/frequency/horizon cells."""
     cells = []
@@ -45,6 +48,7 @@ def load_result_cells(
         config_policy=config_policy,
         repeat_policy=repeat_policy,
         task_specific_model_fields=task_specific_model_fields,
+        config_axis_fields=config_axis_fields,
     )
     for run_dir, manifest in selected:
         identity = manifest["identity"]
@@ -320,8 +324,14 @@ def write_performance_artifacts(cells: list[dict], seasonal_cells: list[dict], d
         })
     return write_performance_report(
         tasks, destination, reference="seasonal_naive", scaled_aggregation="geometric",
-        inputs={"model_manifests": [cell["manifest_path"] for cell in cells],
-                "seasonal_manifests": [cell["manifest_path"] for cell in seasonal_cells]})
+        inputs={
+            "model_dependencies": [
+                manifest_reference(cell["manifest_path"]) for cell in cells
+            ],
+            "seasonal_dependencies": [
+                manifest_reference(cell["manifest_path"]) for cell in seasonal_cells
+            ],
+        })
 
 
 
@@ -485,14 +495,19 @@ def write_report_manifest(
             "config_policy": config_policy,
             "repeat_policy": repeat_policy,
         },
-        "input_manifests": [
-            Path(cell["manifest_path"]).resolve().relative_to(results_dir.resolve()).as_posix()
-            for cell in cells
+        "input_dependencies": [
+            manifest_reference(cell["manifest_path"]) for cell in cells
         ],
-        "seasonal_naive_input_manifests": [
-            str(Path(cell["manifest_path"]).resolve()) for cell in seasonal_naive_cells
+        "seasonal_naive_input_dependencies": [
+            manifest_reference(cell["manifest_path"])
+            for cell in seasonal_naive_cells
         ],
-        "artifacts": [str(artifact) for artifact in artifacts],
+        "artifacts": [
+            artifact.resolve().relative_to(path.parent.resolve()).as_posix()
+            if artifact.resolve().is_relative_to(path.parent.resolve())
+            else str(artifact)
+            for artifact in artifacts
+        ],
     }
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
@@ -562,8 +577,14 @@ def main() -> None:
     parser.add_argument(
         "--config-policy",
         choices=("error", "distinct", "latest", "average"),
-        default="latest",
+        default="error",
         help="How to handle different matching scientific configs",
+    )
+    parser.add_argument(
+        "--config-axis",
+        action="append",
+        default=[],
+        help="Dotted scientific field used as an explicit distinct-report axis",
     )
     parser.add_argument(
         "--repeat-policy",
@@ -590,8 +611,22 @@ def main() -> None:
     args = parser.parse_args()
 
     report_root = outputs_root() / foundation_experiment_name() / "reports"
-    args.csv = args.csv or report_root / "foundation_model_summary.csv"
-    args.markdown = args.markdown or args.csv.parent / "foundation_model_summary.md"
+    final_csv = args.csv or report_root / "foundation_model_summary.csv"
+    final_markdown = args.markdown or final_csv.parent / "foundation_model_summary.md"
+    report_transaction = ReportTransaction(final_csv.parent)
+    args.csv = report_transaction.path(final_csv)
+    args.markdown = report_transaction.path(final_markdown)
+    staged_extra_artifacts = []
+    for artifact in args.extra_artifact:
+        artifact = artifact.expanduser().resolve()
+        if artifact.is_relative_to(report_transaction.destination):
+            staged = report_transaction.path(artifact)
+        else:
+            staged = report_transaction.staging / "performance" / artifact.name
+        staged.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(artifact, staged)
+        staged_extra_artifacts.append(staged)
+    args.extra_artifact = staged_extra_artifacts
     baseline_root = args.seasonal_naive_results_dir or args.results_dir
     baseline_launch_id = args.seasonal_naive_launch_id
     if baseline_launch_id is None and baseline_root.resolve() == args.results_dir.resolve():
@@ -606,13 +641,14 @@ def main() -> None:
         config_filters=config_filters,
         config_policy=args.config_policy,
         repeat_policy=args.repeat_policy,
+        config_axis_fields=args.config_axis,
     )
     seasonal_naive_cells = load_result_cells(
         baseline_root,
         {"seasonal_naive"},
         launch_id=baseline_launch_id,
         target_modes={"univariate"},
-        config_policy=args.config_policy,
+        config_policy="error",
         repeat_policy=args.repeat_policy,
         task_specific_model_fields={"season_length"},
     )
@@ -648,7 +684,8 @@ def main() -> None:
         repeat_policy=args.repeat_policy,
         artifacts=[args.csv, args.markdown, *performance_artifacts],
     )
-    print(f"Foundation-model summary written to {args.csv} and {args.markdown}")
+    report_transaction.commit()
+    print(f"Foundation-model summary written to {final_csv} and {final_markdown}")
     print()
     for row in rows:
         seconds = row["inference_seconds"]
